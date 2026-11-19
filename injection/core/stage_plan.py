@@ -127,6 +127,9 @@ def prepare_plan(injector, plan: StagePlan, target_dir: Path) -> Optional[List[s
                 if step.required:
                     return None
                 continue
+            if step.required and hasattr(step.source, "path"):
+                from ..baseskin.library import ensure_staged_base_skin
+                ensure_staged_base_skin(target_dir / folder, getattr(injector, "game_dir", None), source=step.source.path)
             if step.required:
                 custom_folder = folder
             names.append(folder)
@@ -169,7 +172,7 @@ def _prepare_carrier(injector, step: CarrierStep, target_dir: Path) -> Optional[
     if not zp or not Path(zp).exists():
         log.debug(f"[STAGE] Skin carrier archive not found: {step.skin_name}")
         return None
-    folder = ModManager(target_dir).link_archive(Path(zp))
+    folder = ModManager(target_dir, getattr(injector, "game_dir", None)).link_archive(Path(zp))
     if not folder or not (folder.exists() or is_junction(folder)):
         return None
     return folder.name

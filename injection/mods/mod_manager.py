@@ -30,8 +30,9 @@ def empty_directory(path: Path) -> None:
 class ModManager:
     """Prepares the mods an injection installs"""
 
-    def __init__(self, mods_dir: Path):
+    def __init__(self, mods_dir: Path, game_dir: Path = None):
         self.mods_dir = mods_dir
+        self.game_dir = game_dir
         self.mods_dir.mkdir(parents=True, exist_ok=True)
 
     def clean_mods_dir(self):
@@ -58,5 +59,8 @@ class ModManager:
         target = self.mods_dir / zp.stem
         safe_remove_entry(target)
         link_file(zp, target)
+        if self.game_dir is not None:
+            from injection.baseskin.library import ensure_staged_base_skin
+            ensure_staged_base_skin(target, self.game_dir, source=zp)
         log_success(log, f"Linked skin archive: {zp.name}", "ðŸ“¦")
         return target

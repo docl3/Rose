@@ -25,9 +25,10 @@ import json
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, Iterator, List
+from typing import Dict, Iterator, List, Optional
 
 from utils.core.atomic_file import atomic_write
+from utils.core.junction import is_junction
 from utils.core.logging import get_logger
 
 from .package import FixResult, fix_mod
@@ -120,6 +121,27 @@ def describe(result: FixResult) -> str:
             f"{found.audio_merges} sound tag merge(s), {found.unit_renames} bank unit rename(s), "
             f"{found.bank_moves} bank path move(s), {found.event_names_unlisted} skin event name(s) unlisted")
 
+
+def ensure_staged_base_skin(mod: Path, game_dir: Optional[Path], source: Optional[Path] = None) -> Optional[FixResult]:
+    """Make a staged or linked mod in mods_dir/stage_dir match the base skin."""
+    if game_dir is None:
+        return None
+    mod = Path(mod)
+    game_path = Path(game_dir)
+    if not (game_path / "DATA" / "FINAL" / "Champions").is_dir():
+        return None
+    target = Path(source) if (source is not None and is_junction(mod)) else mod
+    if not target.exists():
+        return None
+    try:
+        with _FIX_LOCK:
+            result = fix_mod(target, game_path)
+        if result.changed:
+            log.info(f"[BASESKIN] Fixed staged skin {mod.name} against the game's base skin: {describe(result)}")
+        return result
+    except Exception as e:
+        log.warning(f"[BASESKIN] Could not check staged mod {mod.name} against the base skin: {e}")
+        return None
 
 # --------------------------------------------------------------------------------------
 # a stored skin this Rose did not fix

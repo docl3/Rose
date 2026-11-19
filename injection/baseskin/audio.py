@@ -793,11 +793,13 @@ class UnitReport:
     def __init__(self) -> None:
         self.renamed: List[Tuple[str, str]] = []  # (old, new) units renamed and kept
         self.merged: List[Tuple[str, str]] = []   # (old, into) renamed units folded into an existing one
-
+        self.events_stripped = 0
+        
     def summary(self) -> str:
         return ", ".join([f"{old} -> {new}" for old, new in self.renamed]
-                         + [f"{old} merged into {into}" for old, into in self.merged])
-
+                         + [f"{old} merged into {into}" for old, into in self.merged]
+                         + ([f"{self.events_stripped} skin event name(s) stripped"] if self.events_stripped else []))
+_SKIN_EVENT_TAG = re.compile(r"(?:^|_)[^_]*skin\d+(?:_|$)", re.IGNORECASE)
 
 def rebase_bank_units(entry: Entry) -> Optional[UnitReport]:
     """Rename bank units from <Champ>_Skin<n>_<Kind> to <Champ>_Base_<Kind>
@@ -836,7 +838,15 @@ def rebase_bank_units(entry: Entry) -> Optional[UnitReport]:
             report.renamed.append((old_name, new_name))
             kept.append(value)
     units[:] = kept
-    return report if report.renamed or report.merged else None
+    for value in units:
+        unit = value.as_embed()
+        ef = unit.find_field(PROP_EVENTS) if unit is not None else None
+        ev_list = ef.value.as_list() if ef is not None else None
+        if ev_list is not None:
+            before = len(ev_list)
+            ev_list[:] = [v for v in ev_list if not (v.ty == STRING and _SKIN_EVENT_TAG.search(v.v))]
+            report.events_stripped += before - len(ev_list)
+            return report if (report.renamed or report.merged or report.events_stripped) else None
 
 
 # --------------------------------------------------------------------------------------
@@ -1097,7 +1107,7 @@ def merge_skin_audio_tags(
                 else:
                     report.events_added += 1
 
-            if not any(same(name, alias) for name in units[winner.unit].events):
+            if not dropped_tag and not any(same(name, alias) for name in units[winner.unit].events):
                 edit_of(winner.unit).list.append(alias)
 
     # Apply: banks first, then the bin
